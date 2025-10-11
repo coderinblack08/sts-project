@@ -1,9 +1,25 @@
-import {
-  Policy,
-  type PolicyResult,
-  type ToolCallContext,
-  type DataFlowNode,
-} from "./data-flow.ts";
+import { type ToolCallContext, type DataFlowNode } from "./kv.ts";
+
+export abstract class Policy {
+  abstract readonly name: string;
+  abstract check(context: ToolCallContext): PolicyResult;
+}
+
+export interface PolicyResult {
+  readonly allowed: boolean;
+  readonly reason?: string;
+}
+
+export class PolicyViolationError extends Error {
+  constructor(
+    message: string,
+    public readonly policy: string,
+    public readonly toolName: string
+  ) {
+    super(message);
+    this.name = "PolicyViolationError";
+  }
+}
 
 export class NoSanitizedDependenciesPolicy extends Policy {
   readonly name = "NoSanitizedDependenciesPolicy";
