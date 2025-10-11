@@ -211,7 +211,7 @@ def run_model_analysis(model_name, num_data, dataset_name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Imton head selection')
+    parser = argparse.ArgumentParser(description='Important head selection')
     parser.add_argument(
         '--model_name', default=None, type=str, help='Single model to analyze'
     )

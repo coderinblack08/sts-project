@@ -13,7 +13,13 @@ from tqdm import tqdm
 from datasets import load_dataset
 from model import AttentionModel
 from dectector import AttentionDetector
-from sklearn.metrics import roc_auc_score, average_precision_score, confusion_matrix
+from sklearn.metrics import (
+    roc_auc_score,
+    average_precision_score,
+    confusion_matrix,
+    roc_curve,
+)
+import matplotlib.pyplot as plt
 
 
 def open_config(config_path):
@@ -35,11 +41,33 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
+def plot_roc_curve(labels, scores, auc_score, output_path):
+    fpr, tpr, thresholds = roc_curve(labels, scores)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(
+        fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {auc_score:.3f})'
+    )
+    plt.plot(
+        [0, 1], [0, 1], color='navy', lw=2, linestyle='--', label='Random classifier'
+    )
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC) Curve')
+    plt.legend(loc="lower right")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+
 def main(args):
     set_seed(args.seed)
 
-    output_logs = f"./result/{args.dataset_name}/{args.model_name}-{args.seed}.json"
-    output_result = f"./result/{args.dataset_name}/result.jsonl"
+    output_logs = f"./probes/result/{args.model_name}_logs.json"
+    output_result = f"./probes/result/{args.model_name}_result.jsonl"
 
     script_dir = Path(__file__).parent.parent
     model_config_path = script_dir / "configs" / f"{args.model_name}.json"
@@ -86,6 +114,10 @@ def main(args):
     print(f"AUC Score: {auc_score}; AUPRC Score: {auprc_score}; FNR: {fnr}; FPR: {fpr}")
 
     os.makedirs(os.path.dirname(output_logs), exist_ok=True)
+
+    output_plot = f"./probes/result/{args.model_name}_roc_curve.png"
+    plot_roc_curve(labels, scores, auc_score, output_plot)
+    print(f"ROC curve saved to: {output_plot}")
     with open(output_logs, "w") as f_out:
         f_out.write(json.dumps({"result": logs}, indent=4))
 
@@ -107,7 +139,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prompt Injection Detection Script")
+    parser = argparse.ArgumentParser(description="Evaluate attention detector")
 
     parser.add_argument(
         "--model_name",
