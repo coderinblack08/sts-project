@@ -1,5 +1,4 @@
 import type { Tool as _T } from "ai";
-import type { KvNode } from "./kv.ts";
 import type { Policy } from "./policy.ts";
 
 export type Tool = _T;
