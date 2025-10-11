@@ -2,8 +2,8 @@ export class KvNode {
   constructor(
     readonly id: string,
     readonly value: any,
-    readonly isUntrusted: boolean,
-    readonly dependencies: ReadonlySet<string>
+    readonly isExternal: boolean,
+    readonly dependencies: ReadonlySet<KvNode>
   ) {}
 }
 
@@ -18,11 +18,11 @@ export class KvStore {
 
   createNode(
     value: any,
-    isUntrusted: boolean,
-    dependencies: readonly string[] = []
+    isExternal: boolean,
+    dependencies: readonly KvNode[] = []
   ): string {
     const id = "$" + (this.index++).toString();
-    const node = new KvNode(id, value, isUntrusted, new Set(dependencies));
+    const node = new KvNode(id, value, isExternal, new Set(dependencies));
     this.nodes.set(id, node);
     return id;
   }
@@ -32,21 +32,6 @@ export class KvStore {
       return undefined;
     }
     return this.nodes.get(id);
-  }
-
-  hasUntrustedDependency(id: string): boolean {
-    const node = this.nodes.get(id);
-    if (!node) {
-      return false;
-    }
-
-    if (node.isUntrusted) {
-      return true;
-    }
-
-    return Array.from(node.dependencies).some((depId) =>
-      this.hasUntrustedDependency(depId)
-    );
   }
 
   getDependencies(id: string): ReadonlySet<KvNode> {
@@ -59,11 +44,11 @@ export class KvStore {
 
       if (!node) continue;
 
-      for (const depId of node.dependencies) {
-        const depNode = this.nodes.get(depId);
+      for (const dependency of node.dependencies) {
+        const depNode = this.nodes.get(dependency.id);
         if (depNode && !dependencies.has(depNode)) {
           dependencies.add(node);
-          queue.push(depId);
+          queue.push(dependency.id);
         }
       }
     }
@@ -71,48 +56,15 @@ export class KvStore {
     return dependencies;
   }
 
-  flattenDependencies(value: any): readonly string[] {
-    if (!this.isObject(value)) {
-      return [];
-    }
-
-    const deps: string[] = [];
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        deps.push(...this.flattenDependencies(item));
-      }
-    } else if (this.hasId(value)) {
-      deps.push(value.__id);
-    } else {
-      const objValue = value as Record<string, any>;
-      for (const key in objValue) {
-        if (Object.prototype.hasOwnProperty.call(objValue, key)) {
-          deps.push(...this.flattenDependencies(objValue[key]));
-        }
-      }
-    }
-
-    return deps;
-  }
-
-  wrapValue(value: any, id: string): any {
-    if (!this.isObject(value)) {
-      return value;
-    }
-
+  wrapValue(value: any, id: string): { value: any; __id: string } {
     return {
-      ...value,
+      value,
       __id: id,
     };
   }
 
   isKey(id: string): boolean {
     return /^\$(\d+)$/.test(id);
-  }
-
-  private isObject(value: any): value is object {
-    return typeof value === "object" && value !== null;
   }
 
   private hasId(value: any): value is { __id: string } & Record<string, any> {
