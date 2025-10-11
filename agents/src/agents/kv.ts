@@ -28,9 +28,8 @@ export class KvStore {
   }
 
   getNode(id: string): KvNode | undefined {
-    const match = id.match(/^\$(\d+)$/);
-    if (!match) {
-      throw new Error("Invalid id: " + id);
+    if (!this.isKey(id)) {
+      return undefined;
     }
     return this.nodes.get(id);
   }
@@ -106,6 +105,10 @@ export class KvStore {
       ...value,
       __id: id,
     };
+  }
+
+  isKey(id: string): boolean {
+    return /^\$(\d+)$/.test(id);
   }
 
   private isObject(value: any): value is object {
