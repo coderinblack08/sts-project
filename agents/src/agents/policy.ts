@@ -1,14 +1,13 @@
-import { type ToolCallContext, type DataFlowNode } from "./kv.ts";
+import type { ToolContext } from "./tool.ts";
 
 export abstract class Policy {
   abstract readonly name: string;
-  abstract check(context: ToolCallContext): PolicyResult;
+  abstract check(context: ToolContext): PolicyResult;
 }
 
-export interface PolicyResult {
-  readonly allowed: boolean;
-  readonly reason?: string;
-}
+export type PolicyResult =
+  | { readonly allowed: true }
+  | { readonly allowed: false; readonly reason?: string };
 
 export class PolicyViolationError extends Error {
   constructor(
@@ -21,49 +20,36 @@ export class PolicyViolationError extends Error {
   }
 }
 
-export class NoSanitizedDependenciesPolicy extends Policy {
-  readonly name = "NoSanitizedDependenciesPolicy";
+export class NoUntrustedDependenciesPolicy extends Policy {
+  readonly name = "NoUntrustedDependenciesPolicy";
 
-  check(context: ToolCallContext): PolicyResult {
-    for (const [nodeId, node] of context.dependencies) {
-      if (this.hasSanitizedAncestor(node, context.dependencies)) {
+  check(context: ToolContext): PolicyResult {
+    for (const [key, { value, isUntrusted }] of Object.entries(
+      context.parameters
+    )) {
+      if (isUntrusted) {
         return {
           allowed: false,
-          reason: `Cannot use data that depends on sanitized values. Node ${nodeId} has sanitized dependencies.`,
+          reason:
+            "No parameter may use values that depends on untrusted data. $" +
+            key +
+            " has untrusted dependencies.",
         };
       }
     }
 
     return { allowed: true };
   }
-
-  private hasSanitizedAncestor(
-    node: DataFlowNode,
-    allNodes: ReadonlyMap<string, DataFlowNode>
-  ): boolean {
-    if (node.isSanitized) {
-      return true;
-    }
-
-    for (const depId of node.dependencies) {
-      const depNode = allNodes.get(depId);
-      if (depNode && this.hasSanitizedAncestor(depNode, allNodes)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
 }
 
-export class ConditionalPolicy extends Policy {
+export class ConditionalPolicy<TC extends ToolContext> extends Policy {
   readonly name: string;
-  private readonly condition: (context: ToolCallContext) => boolean;
+  private readonly condition: (context: TC) => boolean;
   private readonly errorMessage: string;
 
   constructor(
     name: string,
-    condition: (context: ToolCallContext) => boolean,
+    condition: (context: TC) => boolean,
     errorMessage: string
   ) {
     super();
@@ -72,7 +58,7 @@ export class ConditionalPolicy extends Policy {
     this.errorMessage = errorMessage;
   }
 
-  check(context: ToolCallContext): PolicyResult {
+  check(context: TC): PolicyResult {
     if (!this.condition(context)) {
       return {
         allowed: false,
@@ -84,46 +70,65 @@ export class ConditionalPolicy extends Policy {
   }
 }
 
-export function createPolicyBuilder() {
-  return {
-    blockSanitizedDependencies(): Policy {
-      return new NoSanitizedDependenciesPolicy();
-    },
+class ConditionalPolicyBuilder<TC extends ToolContext = ToolContext> {
+  private policyName?: string;
+  private conditionFn?: (context: TC) => boolean;
+  private errorMsg?: string;
 
-    custom(
-      name: string,
-      condition: (context: ToolCallContext) => boolean,
-      errorMessage: string
-    ): Policy {
-      return new ConditionalPolicy(name, condition, errorMessage);
-    },
+  name(name: string): this {
+    this.policyName = name;
+    return this;
+  }
 
-    blockToolsWithSanitizedData(blockedTools: readonly string[]): Policy {
-      const blockedSet = new Set(blockedTools);
-      return new ConditionalPolicy(
-        "BlockToolsWithSanitizedData",
-        (context) => {
-          if (!blockedSet.has(context.toolName)) {
-            return true;
-          }
+  condition(condition: (context: TC) => boolean): this {
+    this.conditionFn = condition;
+    return this;
+  }
 
-          return !Array.from(context.dependencies.values()).some(
-            (node) => node.isSanitized
-          );
-        },
-        `This tool is blocked from using sanitized data`
-      );
-    },
+  error(message: string): this {
+    this.errorMsg = message;
+    return this;
+  }
 
-    requireCleanData(): Policy {
-      return new ConditionalPolicy(
-        "RequireCleanData",
-        (context) =>
-          !Array.from(context.dependencies.values()).some(
-            (node) => node.isSanitized
-          ),
-        "This tool requires clean (non-sanitized) data only"
-      );
-    },
-  };
+  build(): ConditionalPolicy<TC> {
+    if (!this.policyName) {
+      throw new Error("Policy name is required");
+    }
+    if (!this.conditionFn) {
+      throw new Error("Policy condition is required");
+    }
+    if (!this.errorMsg) {
+      throw new Error("Policy error message is required");
+    }
+    return new ConditionalPolicy(
+      this.policyName,
+      this.conditionFn,
+      this.errorMsg
+    );
+  }
 }
+
+export const p = {
+  noUntrustedDependencies(): Policy {
+    return new NoUntrustedDependenciesPolicy();
+  },
+
+  conditional<TC extends ToolContext = ToolContext>(
+    nameOrCondition: string | ((context: TC) => boolean)
+  ): ConditionalPolicyBuilder<TC> {
+    const builder = new ConditionalPolicyBuilder<TC>();
+    if (typeof nameOrCondition === "string") {
+      return builder.name(nameOrCondition);
+    } else {
+      return builder.condition(nameOrCondition);
+    }
+  },
+
+  custom<TC extends ToolContext = ToolContext>(
+    name: string,
+    condition: (context: TC) => boolean,
+    errorMessage: string
+  ): Policy {
+    return new ConditionalPolicy(name, condition, errorMessage);
+  },
+};

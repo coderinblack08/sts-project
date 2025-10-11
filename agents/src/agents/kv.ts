@@ -49,7 +49,7 @@ export class KvStore {
     );
   }
 
-  getAllDependencies(id: string): ReadonlySet<KvNode> {
+  getDependencies(id: string): ReadonlySet<KvNode> {
     const dependencies = new Set<KvNode>();
     const queue = [id];
 

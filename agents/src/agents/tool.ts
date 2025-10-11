@@ -1,10 +1,8 @@
-import type { Tool as _Tool } from "ai";
+import type { Tool as _T } from "ai";
 import type { KvNode } from "./kv.ts";
 import type { Policy } from "./policy.ts";
 
-import type { z } from "zod";
-
-export type Tool = _Tool;
+export type Tool = _T;
 
 export interface ToolWithPolicies {
   readonly tool: Tool;
@@ -13,7 +11,14 @@ export interface ToolWithPolicies {
 
 export type Tools = Record<string, Tool | ToolWithPolicies>;
 
-export interface ToolContext<Schema> {
+export interface ToolContext<
+  TParams = {
+    [key: string]: {
+      readonly value: string | number | boolean | null | undefined;
+      readonly isUntrusted: boolean;
+    };
+  }
+> {
   readonly name: string;
-  readonly parameters: z.infer<Schema>;
+  readonly parameters: TParams;
 }

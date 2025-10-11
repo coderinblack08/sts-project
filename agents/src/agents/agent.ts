@@ -41,28 +41,35 @@ Anytime you are dealing with an external data source, it is considered untrusted
   ): Tool {
     const wrappedExecute: typeof tool.execute = async (params, options) => {
       let dependencies: KvNode[] = [];
+      const context: ToolContext = {
+        name,
+        parameters: {},
+      };
 
-      for (const value of Object.values(params)) {
+      for (const [key, value] of Object.entries(params)) {
         if (typeof value === "string") {
           if (this.kv.isKey(value)) {
             const node = this.kv.getNode(value);
             if (node) {
-              dependencies = [
-                ...dependencies,
-                node,
-                ...this.kv.getAllDependencies(value),
-              ];
+              const nodeDependencies = this.kv.getDependencies(value);
+              dependencies = [...dependencies, node, ...nodeDependencies];
+              // @TODO: I'm pretty sure that isUntrusted should always be true.
+              context.parameters[key] = {
+                value: node.value,
+                isUntrusted: [node, ...nodeDependencies].some(
+                  (node) => node.isUntrusted
+                ),
+              };
             } else {
               throw new Error("Index of $" + value + " not found");
             }
+          } else {
+            context.parameters[key] = { value, isUntrusted: false };
           }
         }
       }
 
-      this.enforceToolPolices(policies, {
-        name,
-        parameters: params,
-      } as ToolContext<typeof tool.inputSchema>);
+      this.enforceToolPolices(policies, context);
 
       if (!tool.execute) {
         throw new Error(`Tool "${name}" has no execute function`);
@@ -82,7 +89,7 @@ Anytime you are dealing with an external data source, it is considered untrusted
 
   private enforceToolPolices(
     policies: readonly Policy[],
-    context: ToolContext<any>
+    context: ToolContext
   ): void {
     for (const policy of policies) {
       const result = policy.check(context);
