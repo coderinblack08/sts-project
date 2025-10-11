@@ -6,6 +6,7 @@ export type Tool = _T;
 export interface ToolWithPolicies {
   readonly tool: Tool;
   readonly policies: readonly Policy[];
+  readonly isExternal: boolean;
 }
 
 export type Tools = Record<string, Tool | ToolWithPolicies>;

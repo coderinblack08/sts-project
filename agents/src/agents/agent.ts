@@ -1,41 +1,32 @@
 import type { LanguageModel } from "ai";
-import { Experimental_Agent, generateText, tool } from "ai";
+import { Experimental_Agent, generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { KvNode, KvStore } from "./kv.ts";
 import { type Policy, PolicyViolationError } from "./policy.ts";
-import type { Tool, ToolContext, Tools, ToolWithPolicies } from "./tool.ts";
 import { SYSTEM_PROMPT } from "./prompts.ts";
+import type { Tool, ToolContext, ToolWithPolicies } from "./tool.ts";
 
 export class Agent {
   private readonly qLLM: LanguageModel;
   private readonly pLLM: LanguageModel;
-  private readonly tools: Map<string, ToolWithPolicies>;
+  private readonly tools: Record<string, ToolWithPolicies>;
   private readonly kv: KvStore = new KvStore();
 
-  constructor(qLLM: LanguageModel, pLLM: LanguageModel, tools: Tools) {
+  constructor(
+    qLLM: LanguageModel,
+    pLLM: LanguageModel,
+    tools: Record<string, ToolWithPolicies>
+  ) {
     this.qLLM = qLLM;
     this.pLLM = pLLM;
-    this.tools = this.normalizeTools(tools);
-  }
-
-  private normalizeTools(tools: Tools): Map<string, ToolWithPolicies> {
-    const normalized = new Map<string, ToolWithPolicies>();
-
-    for (const [name, config] of Object.entries(tools)) {
-      if ("tool" in config && "policies" in config) {
-        normalized.set(name, config);
-      } else {
-        normalized.set(name, { tool: config as Tool, policies: [] });
-      }
-    }
-
-    return normalized;
+    this.tools = tools;
   }
 
   private wrapToolWithPolicyCheck(
     name: string,
     tool: Tool,
-    policies: readonly Policy[]
+    policies: readonly Policy[],
+    isExternal: boolean
   ): Tool {
     const wrappedExecute: typeof tool.execute = async (params, options) => {
       let dependencies: KvNode[] = [];
@@ -49,13 +40,14 @@ export class Agent {
           if (this.kv.isKey(value)) {
             const node = this.kv.getNode(value);
             if (node) {
+              params[key] = JSON.stringify(node.value);
               dependencies.push(node);
               context.parameters[key] = {
                 value: node.value,
                 isUntrusted: true,
               };
             } else {
-              throw new Error("Index of $" + value + " not found");
+              throw new Error("Index of " + value + " not found");
             }
           } else {
             context.parameters[key] = { value, isUntrusted: false };
@@ -70,9 +62,9 @@ export class Agent {
       }
 
       const result = await tool.execute(params, options);
-      if (dependencies.length > 0) {
+      if (dependencies.length > 0 || isExternal) {
         const id = this.kv.createNode(result, true, dependencies);
-        return this.kv.wrapValue(result, id);
+        return { __id: id };
       } else {
         return result;
       }
@@ -115,29 +107,31 @@ export class Agent {
           .describe("The untrusted data to interact with (e.g. $0 or $1)"),
       }),
       execute: async ({ qPrompt, untrustedData }) => {
-        if (this.kv.isKey(untrustedData)) {
-          const node = this.kv.getNode(untrustedData);
-          if (node) {
-            return node.value;
-          }
+        if (!this.kv.isKey(untrustedData)) {
+          throw new Error("Invalid key: " + untrustedData);
         }
-
+        const node = this.kv.getNode(untrustedData);
+        if (!node) {
+          throw new Error("Key not found: " + untrustedData);
+        }
         const extractedValue = await generateText({
           model: this.qLLM,
           system: qPrompt,
-          prompt: untrustedData,
+          prompt: JSON.stringify(node.value),
         });
 
-        return extractedValue.text;
+        const id = this.kv.createNode(extractedValue.text, true);
+        return { __id: id };
       },
     });
 
     const wrappedTools: Record<string, Tool> = {};
-    for (const [name, config] of this.tools.entries()) {
+    for (const [name, config] of Object.entries(this.tools)) {
       wrappedTools[name] = this.wrapToolWithPolicyCheck(
         name,
         config.tool,
-        config.policies
+        config.policies,
+        config.isExternal
       );
     }
 
@@ -145,6 +139,7 @@ export class Agent {
       model: this.pLLM,
       system: SYSTEM_PROMPT,
       tools: { ...wrappedTools, qLLM },
+      stopWhen: stepCountIs(3),
     });
 
     const result = await agent.generate({ prompt });
@@ -154,6 +149,13 @@ export class Agent {
       if (node) {
         return node.value;
       }
+    }
+
+    await Bun.write("agent_output.txt", JSON.stringify(result.steps, null, 2));
+    console.log(`[💾] Saved agent output to agent_output.txt`);
+
+    for (const step of result.steps) {
+      console.log(step.toolCalls, step.toolResults);
     }
 
     return result.text;
