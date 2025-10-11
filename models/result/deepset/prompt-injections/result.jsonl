@@ -1,0 +1,4 @@
+{"model": "qwen2.5-attn", "seed": 0, "auc": 0.967, "auprc": 0.971, "fnr": 0.033, "fpr": 0.321}
+{"model": "qwen2.5-attn", "seed": 0, "auc": 0.955, "auprc": 0.961, "fnr": 0.0, "fpr": 0.679}
+{"model": "qwen2.5-attn", "seed": 0, "auc": 0.967, "auprc": 0.971, "fnr": 0.033, "fpr": 0.321}
+{"model": "qwen2.5-attn", "seed": 0, "auc": 0.967, "auprc": 0.971, "fnr": 0.033, "fpr": 0.321}
