@@ -6,3 +6,8 @@ wheels/
 *.egg-info
 .venv
 .env
+
+output/
+
+drift-tracker/dataset/*
+!drift-tracker/dataset/injection_train_min.json
