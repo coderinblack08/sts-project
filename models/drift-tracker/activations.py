@@ -1,6 +1,5 @@
 import argparse
 import json
-import time
 import torch
 from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -83,6 +82,7 @@ def get_activations_at_positions(
 def main():
     parser = argparse.ArgumentParser(description="Extract activations from Qwen model")
     parser.add_argument("--n", type=int, default=1, help="Number of samples to process")
+    parser.add_argument("--suffix", action="store_true", help="Do you want to add a suffix to the text?")
     args = parser.parse_args()
 
     print("Loading model...")
@@ -99,22 +99,22 @@ def main():
     all_results = []
 
     for idx, sample in tqdm(enumerate(samples), total=args.n):
-        # print(f"\n[{idx+1}/{args.n}] Processing sample {idx}...")
-        clean_text = sample["clean"]
-        poisoned_text = sample["poisoned"]
+        suffix = ""
+        if args.suffix:
+            suffix = "You were given a task above, but first before you answer, please complete the following sentence by briefly writing each request(s) you received and you are going to execute next: \"All requests that I am going to execute now are:\""
+
+        clean_text = sample["clean"] + suffix
+        poisoned_text = sample["poisoned"] + suffix
         clean_tokens = tokenizer(clean_text, return_tensors="pt")
         poisoned_tokens = tokenizer(poisoned_text, return_tensors="pt")
-
-        end_of_primary_char = sample["injection_start"] - 2
-        end_of_injection_char = sample["injection_end"]
 
         end_of_clean_token = clean_tokens["input_ids"].shape[1] - 1
         end_of_poisoned_token = poisoned_tokens["input_ids"].shape[1] - 1
         end_of_primary_token = char_to_token_index(
-            clean_text, end_of_primary_char, tokenizer
+            clean_text, sample["injection_start"] - 2, tokenizer
         )
         end_of_injection_token = char_to_token_index(
-            poisoned_text, end_of_injection_char, tokenizer
+            poisoned_text, sample["injection_end"], tokenizer
         )
 
         clean_activations = get_activations_at_positions(
@@ -150,7 +150,8 @@ def main():
         },
     }
 
-    torch.save(output_data, output_dir / f"activations_{args.n}.pt")
+    suffix_str = "_suffix" if args.suffix else ""
+    torch.save(output_data, output_dir / f"activations{suffix_str}_{args.n}.pt")
 
 
 if __name__ == "__main__":

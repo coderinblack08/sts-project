@@ -1,74 +1,14 @@
-import torch
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import numpy as np
 from pathlib import Path
-from typing import List, Tuple
-from jaxtyping import Float
+from typing import List
+from utils import load_activations, compute_activation_residuals
 
 output_dir = Path(__file__).parent / "output"
 
 
-def load_activations(filename: str) -> dict:
-    filepath = output_dir / filename
-    if not filepath.exists():
-        raise FileNotFoundError(f"File {filepath} not found. Run activations.py first.")
-    return torch.load(filepath)
-
-
-def extract_layer_activations(
-    data: dict, layer_idx: int
-) -> Tuple[
-    Float[np.ndarray, "n_samples d_model"], Float[np.ndarray, "n_samples d_model"]
-]:
-    clean_acts = []
-    poisoned_acts = []
-
-    for sample in data["samples"]:
-        clean_positions = sample["clean"]
-        poisoned_positions = sample["poisoned"]
-        metadata = sample["metadata"]
-
-        primary_key = f"pos_{metadata['end_of_primary_token']}"
-        injection_key = f"pos_{metadata['end_of_injection_token']}"
-        clean_key = f"pos_{metadata['end_of_clean_token']}"
-        poisoned_key = f"pos_{metadata['end_of_poisoned_token']}"
-
-        clean_acts.append(
-            [
-                clean_positions[primary_key][layer_idx].numpy(),
-                clean_positions[clean_key][layer_idx].numpy(),
-            ]
-        )
-        poisoned_acts.append(
-            [
-                poisoned_positions[primary_key][layer_idx].numpy(),
-                poisoned_positions[injection_key][layer_idx].numpy(),
-                poisoned_positions[poisoned_key][layer_idx].numpy(),
-            ]
-        )
-
-    return np.array(clean_acts), np.array(poisoned_acts)
-
-
-def compute_activation_residuals(
-    data: dict, layer_idx: int
-) -> Tuple[
-    Float[np.ndarray, "n_samples d_model"], Float[np.ndarray, "n_samples d_model"]
-]:
-    clean_residuals = []
-    poisoned_residuals = []
-
-    activations = extract_layer_activations(data, layer_idx)
-
-    for clean_act, poisoned_act in zip(activations[0], activations[1]):
-        clean_residuals.append(clean_act[1] - clean_act[0])
-        poisoned_residuals.append(poisoned_act[2] - poisoned_act[0])
-
-    return np.array(clean_residuals), np.array(poisoned_residuals)
-
-
-def plot_tsne_layers(data: dict, layers: List[int], perplexity: int = 30):
+def plot_tsne_layers(args, data: dict, layers: List[int], perplexity: int = 30):
     n_layers = len(layers)
     fig, axes = plt.subplots(1, n_layers, figsize=(5 * n_layers, 5))
 
@@ -112,7 +52,7 @@ def plot_tsne_layers(data: dict, layers: List[int], perplexity: int = 30):
 
     plt.tight_layout()
 
-    output_path = output_dir / f"tsne_layers_{'_'.join(map(str, layers))}.png"
+    output_path = output_dir / f"tsne_{args.file}.png"
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Saved plot to {output_path}")
     plt.show()
@@ -149,6 +89,7 @@ def main():
     print(f"Visualizing layers: {args.layers}")
 
     plot_tsne_layers(
+        args,
         data,
         args.layers,
         perplexity=args.perplexity,
