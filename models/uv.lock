@@ -3243,6 +3243,7 @@ dependencies = [
     { name = "tqdm" },
     { name = "transformer-lens" },
     { name = "uvicorn" },
+    { name = "vastai" },
 ]
 
 [package.metadata]
@@ -3264,6 +3265,7 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "transformer-lens", specifier = ">=2.15.4" },
     { name = "uvicorn", specifier = ">=0.24.0" },
+    { name = "vastai", specifier = ">=0.2.8" },
 ]
 
 [[package]]
@@ -3555,6 +3557,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/71/57/1616c8274c3442d802621abf5deb230771c7a0fec9414cb6763900eb3868/uvicorn-0.37.0.tar.gz", hash = "sha256:4115c8add6d3fd536c8ee77f0e14a7fd2ebba939fed9b02583a97f80648f9e13", size = 80367, upload-time = "2025-09-23T13:33:47.486Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/85/cd/584a2ceb5532af99dd09e50919e3615ba99aa127e9850eafe5f31ddfdb9a/uvicorn-0.37.0-py3-none-any.whl", hash = "sha256:913b2b88672343739927ce381ff9e2ad62541f9f8289664fa1d1d3803fa2ce6c", size = 67976, upload-time = "2025-09-23T13:33:45.842Z" },
+]
+
+[[package]]
+name = "vastai"
+version = "0.2.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/83/2f/4c0da2eb30cbadaf69505db3172422d9ae44dfc22d623fb8a94d4bfedc7e/vastai-0.2.8.tar.gz", hash = "sha256:efbc9976c01709bf5bdb604b9c8e192f34bbbed273ca10b484bd885e01c69303", size = 73729, upload-time = "2024-12-10T06:27:06.664Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/36/d0/e8c73570452538f3f23f4f519fc029a17b718cf411be5a5e36086a095dc7/vastai-0.2.8-py3-none-any.whl", hash = "sha256:1818e448fef894f35ba9e3c0a7a79621fd01342bdd60afd1b20d38ab19f3af3b", size = 58851, upload-time = "2024-12-10T06:27:04.098Z" },
 ]
 
 [[package]]

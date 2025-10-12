@@ -7,6 +7,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from jaxtyping import Float
 from torch import Tensor
 from typing import Dict, List
+import random
+from tqdm import tqdm
 
 dataset_dir = Path(__file__).parent / "dataset"
 output_dir = Path(__file__).parent / "output"
@@ -20,9 +22,11 @@ device = (
 
 
 def load_samples(n: int):
-    with open(dataset_dir / "injection_train.json", "r") as f:
+    with open(dataset_dir / "injection_train_min.json", "r") as f:
         data = json.load(f)
-    sampled = [data[i] for i in range(0, len(data), 3)]
+    sampled = [data[i + random.randint(0, 2)] for i in range(0, len(data), 3)]
+
+    print(len(sampled), len(data))
     return sampled[:n]
 
 
@@ -97,7 +101,9 @@ def main():
     total_clean_time = 0
     total_poisoned_time = 0
 
-    for idx, sample in enumerate(samples):
+    for idx, sample in tqdm(
+        enumerate(samples), total=args.n, desc="Processing samples"
+    ):
         print(f"\n[{idx+1}/{args.n}] Processing sample {idx}...")
 
         clean_start = time.time()
