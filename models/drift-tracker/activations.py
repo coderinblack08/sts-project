@@ -24,6 +24,7 @@ device = (
 def load_samples(n: int):
     with open(dataset_dir / "injection_train_min.json", "r") as f:
         data = json.load(f)
+    assert len(data) % 3 == 0
     sampled = [data[i + random.randint(0, 2)] for i in range(0, len(data), 3)]
 
     print(len(sampled), len(data))
@@ -84,8 +85,6 @@ def main():
     parser.add_argument("--n", type=int, default=1, help="Number of samples to process")
     args = parser.parse_args()
 
-    start_time = time.time()
-
     print("Loading model...")
     model_name = "Qwen/Qwen2.5-1.5B"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -98,51 +97,35 @@ def main():
     samples = load_samples(args.n)
 
     all_results = []
-    total_clean_time = 0
-    total_poisoned_time = 0
 
-    for idx, sample in tqdm(
-        enumerate(samples), total=args.n, desc="Processing samples"
-    ):
-        print(f"\n[{idx+1}/{args.n}] Processing sample {idx}...")
-
-        clean_start = time.time()
+    for idx, sample in tqdm(enumerate(samples), total=args.n):
+        # print(f"\n[{idx+1}/{args.n}] Processing sample {idx}...")
         clean_text = sample["clean"]
+        poisoned_text = sample["poisoned"]
         clean_tokens = tokenizer(clean_text, return_tensors="pt")
-        last_token_pos = clean_tokens["input_ids"].shape[1] - 1
+        poisoned_tokens = tokenizer(poisoned_text, return_tensors="pt")
+
+        end_of_primary_char = sample["injection_start"] - 2
+        end_of_injection_char = sample["injection_end"]
+
+        end_of_clean_token = clean_tokens["input_ids"].shape[1] - 1
+        end_of_poisoned_token = poisoned_tokens["input_ids"].shape[1] - 1
+        end_of_primary_token = char_to_token_index(
+            clean_text, end_of_primary_char, tokenizer
+        )
+        end_of_injection_token = char_to_token_index(
+            poisoned_text, end_of_injection_char, tokenizer
+        )
 
         clean_activations = get_activations_at_positions(
-            model, tokenizer, clean_text, [last_token_pos]
+            model, tokenizer, clean_text, [end_of_primary_token, end_of_clean_token]
         )
-        clean_time = time.time() - clean_start
-        total_clean_time += clean_time
-
-        poisoned_start = time.time()
-        poisoned_text = sample["poisoned"]
-        injection_start_char = sample["injection_start"]
-        injection_end_char = sample["injection_end"]
-
-        injection_start_token = char_to_token_index(
-            poisoned_text, injection_start_char, tokenizer
-        )
-        injection_end_token = char_to_token_index(
-            poisoned_text, injection_end_char, tokenizer
-        )
-
-        poisoned_tokens = tokenizer(poisoned_text, return_tensors="pt")
-        last_token_pos_poisoned = poisoned_tokens["input_ids"].shape[1] - 1
-
-        positions_to_save = [
-            injection_start_token,
-            injection_end_token,
-            last_token_pos_poisoned,
-        ]
-
         poisoned_activations = get_activations_at_positions(
-            model, tokenizer, poisoned_text, positions_to_save
+            model,
+            tokenizer,
+            poisoned_text,
+            [end_of_primary_token, end_of_injection_token, end_of_poisoned_token],
         )
-        poisoned_time = time.time() - poisoned_start
-        total_poisoned_time += poisoned_time
 
         all_results.append(
             {
@@ -150,10 +133,10 @@ def main():
                 "poisoned": poisoned_activations,
                 "metadata": {
                     "sample_idx": idx,
-                    "injection_start_token": injection_start_token,
-                    "injection_end_token": injection_end_token,
-                    "clean_last_token": last_token_pos,
-                    "poisoned_last_token": last_token_pos_poisoned,
+                    "end_of_primary_token": end_of_primary_token,
+                    "end_of_injection_token": end_of_injection_token,
+                    "end_of_clean_token": end_of_clean_token,
+                    "end_of_poisoned_token": end_of_poisoned_token,
                 },
             }
         )
@@ -168,13 +151,6 @@ def main():
     }
 
     torch.save(output_data, output_dir / f"activations_{args.n}.pt")
-
-    total_time = time.time() - start_time
-    print(f"\nSaved all activations to activations_{args.n}.pt")
-    print(f"Processed {args.n} samples")
-    print(f"Avg clean time: {total_clean_time/args.n:.2f}s")
-    print(f"Avg poisoned time: {total_poisoned_time/args.n:.2f}s")
-    print(f"Total time: {total_time:.2f}s")
 
 
 if __name__ == "__main__":
