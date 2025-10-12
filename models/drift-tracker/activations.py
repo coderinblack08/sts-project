@@ -22,7 +22,8 @@ device = (
 def load_samples(n: int):
     with open(dataset_dir / "injection_train.json", "r") as f:
         data = json.load(f)
-    return data[:n]
+    sampled = [data[i] for i in range(0, len(data), 3)]
+    return sampled[:n]
 
 
 def char_to_token_index(text: str, char_idx: int, tokenizer) -> int:
