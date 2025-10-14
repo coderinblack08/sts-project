@@ -11,3 +11,4 @@ output/
 
 drift-tracker/dataset/*
 !drift-tracker/dataset/injection_train_min.json
+!drift-tracker/dataset/injection_test_min.json
