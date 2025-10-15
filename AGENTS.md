@@ -1,4 +1,4 @@
-Do test driven development.
+Do test driven development. Cavet: only do this when the feature you're implementing is hard, not when it's straight forward.
 Write typescript tests after implementing features with bun:test.
 Write python tests after impmlementing features with pytest.
 Don't create "example" scripts.

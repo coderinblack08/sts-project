@@ -5,7 +5,7 @@ from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from jaxtyping import Float
 from torch import Tensor
-from typing import Dict, List
+from typing import Dict, List, Optional
 import random
 from tqdm import tqdm
 
@@ -20,14 +20,14 @@ device = (
 )
 
 
-def load_samples(n: int):
-    with open(dataset_dir / "injection_train_min.json", "r") as f:
+def load_samples(n: Optional[int], split: str):
+    with open(dataset_dir / f"injection_{split}_min.json", "r") as f:
         data = json.load(f)
     assert len(data) % 3 == 0
     sampled = [data[i + random.randint(0, 2)] for i in range(0, len(data), 3)]
 
     print(len(sampled), len(data))
-    return sampled[:n]
+    return sampled if n is None else sampled[:n]
 
 
 def char_to_token_index(text: str, char_idx: int, tokenizer) -> int:
@@ -81,9 +81,19 @@ def get_activations_at_positions(
 
 def main():
     parser = argparse.ArgumentParser(description="Extract activations from Qwen model")
-    parser.add_argument("--n", type=int, default=1, help="Number of samples to process")
-    parser.add_argument("--suffix", action="store_true", help="Do you want to add a suffix to the text?")
+    parser.add_argument(
+        "--n",
+        type=str,
+        default="1",
+        help="Number of samples to process (or 'max' for all)",
+    )
+    parser.add_argument(
+        "--suffix", action="store_true", help="Do you want to add a suffix to the text?"
+    )
+    parser.add_argument("--split", type=str, default="train", choices=["train", "test"])
     args = parser.parse_args()
+
+    n = None if args.n.lower() == "max" else int(args.n)
 
     print("Loading model...")
     model_name = "Qwen/Qwen2.5-1.5B"
@@ -94,11 +104,11 @@ def main():
     model.eval()
 
     print(f"Loading {args.n} samples...")
-    samples = load_samples(args.n)
+    samples = load_samples(n, args.split)
 
     all_results = []
 
-    for idx, sample in tqdm(enumerate(samples), total=args.n):
+    for idx, sample in tqdm(enumerate(samples), total=len(samples)):
         suffix = ""
         if args.suffix:
             suffix = "You were given a task above, but first before you answer, please complete the following sentence by briefly writing each request(s) you received and you are going to execute next: \"All requests that I am going to execute now are:\""
@@ -144,14 +154,14 @@ def main():
     output_data = {
         "samples": all_results,
         "global_metadata": {
-            "num_samples": args.n,
+            "num_samples": len(samples),
             "num_layers": len(model.model.layers),
             "d_model": model.config.hidden_size,
         },
     }
 
     suffix_str = "_suffix" if args.suffix else ""
-    torch.save(output_data, output_dir / f"activations{suffix_str}_{args.n}.pt")
+    torch.save(output_data, output_dir / f"activations{suffix_str}_{len(samples)}.pt")
 
 
 if __name__ == "__main__":
