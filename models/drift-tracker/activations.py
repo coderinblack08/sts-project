@@ -154,9 +154,10 @@ def main():
         },
     }
 
-    filename = f"{args.split}_activations_{"max" if args.n.lower() == "max" else args.n}{len(samples)}{'_suffix' if args.suffix else ''}.pt"
-
+    filename = f"{args.split}_activations_{'max' if args.n.lower() == 'max' else args.n}{len(samples)}{'_suffix' if args.suffix else ''}.pt"
     output_path = output_dir / filename
+    torch.save(output_data, output_path)
+    print(f"Saved activations to {output_path}")
 
     if args.hf:
         create_repo(repo_id=args.hf_repo, repo_type="dataset", exist_ok=True)
@@ -167,9 +168,6 @@ def main():
             repo_type="dataset",
         )
         print(f"Uploaded {filename} to {args.hf_repo}")
-    else:
-        torch.save(output_data, output_path)
-        print(f"Saved activations to {output_path}")
 
 
 if __name__ == "__main__":
