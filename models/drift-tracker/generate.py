@@ -100,19 +100,10 @@ def inject_text(
 def process_split_data(
     squad_data: dict,
     triggers: List[str],
-    alpaca_data=None,
-    secondary_data: List[str] = None,
+    split: Literal['train', 'test'],
+    secondary_data: List[str],
+    min: bool = False,
 ) -> List[Dict[str, any]]:
-    if secondary_data is not None:
-        secondary_instructions = secondary_data
-        print(f"Using {len(secondary_instructions)} secondary test prompts")
-    else:
-        alpaca_no_input = [
-            item for item in alpaca_data if not item.get('input', '').strip()
-        ]
-        secondary_instructions = alpaca_no_input
-        print(f"Loaded {len(alpaca_no_input)} Alpaca instances (no input)")
-
     squad_instances = []
     for article in squad_data['data']:
         for paragraph in article['paragraphs']:
@@ -126,58 +117,75 @@ def process_split_data(
     positions = ['beginning', 'middle', 'end']
     num_samples = len(squad_instances)
 
+    if min and split == 'train':
+        num_samples = 12_800
+        squad_instances = squad_instances[:num_samples]
+
+    if min and split == 'test':
+        num_samples = 3_200
+        squad_instances = squad_instances[:num_samples]
+
     for i in range(num_samples):
-        squad_idx = i % len(squad_instances)
-        secondary_idx = random.randint(0, len(secondary_instructions) - 1)
-        trigger_idx = random.randint(0, len(triggers) - 1)
-        position = positions[i % 3]
+        secondary = random.choice(secondary_data)
+        trigger = random.choice(triggers)
+        position = random.choice(positions)
 
-        primary_text = squad_instances[squad_idx]
-
-        if secondary_data is not None:
-            secondary_text = secondary_instructions[secondary_idx]
-        else:
-            secondary_text = secondary_instructions[secondary_idx]['instruction']
-
-        trigger = triggers[trigger_idx]
+        primary_text = squad_instances[i]
 
         clean_sample = primary_text[0] + " " + primary_text[1]
-        poisoned_sample, start_idx, end_idx = inject_text(
-            primary_text, trigger, secondary_text, position
+        poisoned_sample, injection_start, injection_end = inject_text(
+            primary_text, trigger, secondary, position
         )
 
         samples.append(
             {
                 "clean": clean_sample,
                 "poisoned": poisoned_sample,
-                "injection_start": start_idx,
-                "injection_end": end_idx,
+                "primary_start": 0,
+                "primary_end": len(primary_text[0]) - 1,
+                "injection_start": injection_start,
+                "injection_end": injection_end,
                 "position": position,
             }
         )
 
     print(f"Generated {len(samples)} clean/poisoned sample pairs")
+
     return samples
 
 
-def generate_injections(split: Literal['train', 'test']) -> List[Dict[str, any]]:
+def generate_injections(
+    split: Literal['train', 'test'], min: bool
+) -> List[Dict[str, any]]:
     squad_data = load_squad_dataset(split)
     triggers = load_trigger_dataset(split)
 
     if split == 'test':
         secondary_data = load_secondary_tests_dataset()
-        return process_split_data(squad_data, triggers, secondary_data=secondary_data)
+        return process_split_data(
+            squad_data, triggers, split=split, secondary_data=secondary_data, min=min
+        )
     else:
         alpaca_data = load_alpaca_dataset(split)
-        return process_split_data(squad_data, triggers, alpaca_data=alpaca_data)
+        secondary_data = [
+            item['instruction']
+            for item in alpaca_data
+            if not item.get('input', '').strip()
+        ]
+        return process_split_data(
+            squad_data, triggers, split=split, secondary_data=secondary_data, min=min
+        )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate injections")
     parser.add_argument("--split", type=str, default="train", choices=["train", "test"])
+    parser.add_argument("--min", action="store_true")
     args = parser.parse_args()
 
-    samples = generate_injections(args.split)
+    samples = generate_injections(split=args.split, min=args.min)
 
-    with open(dataset_dir / f"injection_{args.split}.json", "w") as f:
+    with open(
+        dataset_dir / f"injection_{args.split}{'_min' if args.min else ''}.json", "w"
+    ) as f:
         json.dump(samples, f, indent=2)

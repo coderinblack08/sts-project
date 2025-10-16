@@ -1,33 +1,18 @@
 import argparse
-import json
 import torch
-from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from jaxtyping import Float
 from torch import Tensor
-from typing import Dict, List, Optional
-import random
+from typing import Dict, List
 from tqdm import tqdm
-
-dataset_dir = Path(__file__).parent / "dataset"
-output_dir = Path(__file__).parent / "output"
-output_dir.mkdir(exist_ok=True)
+from huggingface_hub import upload_file, create_repo
+from utils import load_samples, output_dir
 
 device = (
     "cuda"
     if torch.cuda.is_available()
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
-
-
-def load_samples(n: Optional[int], split: str):
-    with open(dataset_dir / f"injection_{split}_min.json", "r") as f:
-        data = json.load(f)
-    assert len(data) % 3 == 0
-    sampled = [data[i + random.randint(0, 2)] for i in range(0, len(data), 3)]
-
-    print(len(sampled), len(data))
-    return sampled if n is None else sampled[:n]
 
 
 def char_to_token_index(text: str, char_idx: int, tokenizer) -> int:
@@ -55,7 +40,7 @@ def get_activations_at_positions(
     for pos_idx in positions:
         layer_activations = []
 
-        def hook_fn(layer_idx):
+        def hook_fn():
             def hook(module, input, output):
                 hidden_states = output[0] if isinstance(output, tuple) else output
                 activation = hidden_states[0, pos_idx, :].detach().cpu()
@@ -64,8 +49,8 @@ def get_activations_at_positions(
             return hook
 
         hooks = []
-        for layer_idx, layer in enumerate(model.model.layers):
-            hook = layer.register_forward_hook(hook_fn(layer_idx))
+        for layer in model.model.layers:
+            hook = layer.register_forward_hook(hook_fn())
             hooks.append(hook)
 
         with torch.no_grad():
@@ -81,17 +66,18 @@ def get_activations_at_positions(
 
 def main():
     parser = argparse.ArgumentParser(description="Extract activations from Qwen model")
-    parser.add_argument(
-        "--n",
-        type=str,
-        default="1",
-        help="Number of samples to process (or 'max' for all)",
-    )
-    parser.add_argument(
-        "--suffix", action="store_true", help="Do you want to add a suffix to the text?"
-    )
+    parser.add_argument("--n", type=str, default="max")
     parser.add_argument("--split", type=str, default="train", choices=["train", "test"])
+    parser.add_argument("--suffix", action="store_true")
+    parser.add_argument("--hf", action="store_true")
+    parser.add_argument("--hf-repo", type=str, default=None)
     args = parser.parse_args()
+
+    if args.hf and not args.hf_repo:
+        parser.error("--hf-repo is required when --hf is specified")
+
+    if args.hf and "/" not in args.hf_repo:
+        parser.error("--hf-repo must be in format 'username/repo-name'")
 
     n = None if args.n.lower() == "max" else int(args.n)
 
@@ -106,26 +92,28 @@ def main():
     print(f"Loading {args.n} samples...")
     samples = load_samples(n, args.split)
 
-    all_results = []
+    suffix_text = (
+        "You were given a task above, but first before you answer, please complete the following sentence by briefly writing each request(s) you received and you are going to execute next: \"All requests that I am going to execute now are:\""
+        if args.suffix
+        else ""
+    )
 
-    for idx, sample in tqdm(enumerate(samples), total=len(samples)):
-        suffix = ""
-        if args.suffix:
-            suffix = "You were given a task above, but first before you answer, please complete the following sentence by briefly writing each request(s) you received and you are going to execute next: \"All requests that I am going to execute now are:\""
+    data = []
 
-        clean_text = sample["clean"] + suffix
-        poisoned_text = sample["poisoned"] + suffix
+    for idx, sample in tqdm(samples, total=len(samples)):
+        clean_text = sample["clean"] + suffix_text
+        poisoned_text = sample["poisoned"] + suffix_text
         clean_tokens = tokenizer(clean_text, return_tensors="pt")
         poisoned_tokens = tokenizer(poisoned_text, return_tensors="pt")
 
-        end_of_clean_token = clean_tokens["input_ids"].shape[1] - 1
-        end_of_poisoned_token = poisoned_tokens["input_ids"].shape[1] - 1
         end_of_primary_token = char_to_token_index(
-            clean_text, sample["injection_start"] - 2, tokenizer
+            clean_text, sample["primary_end"], tokenizer
         )
         end_of_injection_token = char_to_token_index(
             poisoned_text, sample["injection_end"], tokenizer
         )
+        end_of_clean_token = clean_tokens["input_ids"].shape[1] - 1
+        end_of_poisoned_token = poisoned_tokens["input_ids"].shape[1] - 1
 
         clean_activations = get_activations_at_positions(
             model, tokenizer, clean_text, [end_of_primary_token, end_of_clean_token]
@@ -134,25 +122,28 @@ def main():
             model,
             tokenizer,
             poisoned_text,
-            [end_of_primary_token, end_of_injection_token, end_of_poisoned_token],
+            [end_of_injection_token, end_of_poisoned_token],
         )
 
-        all_results.append(
-            {
+        result = {
+            "sample_idx": idx,
+            "positions": {
+                "end_of_primary": end_of_primary_token,
+                "start_of_injection": sample["injection_start"],
+                "end_of_injection": end_of_injection_token,
+                "end_of_clean": end_of_clean_token,
+                "end_of_poisoned": end_of_poisoned_token,
+            },
+            "activations": {
                 "clean": clean_activations,
                 "poisoned": poisoned_activations,
-                "metadata": {
-                    "sample_idx": idx,
-                    "end_of_primary_token": end_of_primary_token,
-                    "end_of_injection_token": end_of_injection_token,
-                    "end_of_clean_token": end_of_clean_token,
-                    "end_of_poisoned_token": end_of_poisoned_token,
-                },
-            }
-        )
+            },
+        }
+
+        data.append(result)
 
     output_data = {
-        "samples": all_results,
+        "samples": data,
         "global_metadata": {
             "num_samples": len(samples),
             "num_layers": len(model.model.layers),
@@ -160,8 +151,24 @@ def main():
         },
     }
 
-    suffix_str = "_suffix" if args.suffix else ""
-    torch.save(output_data, output_dir / f"activations{suffix_str}_{len(samples)}.pt")
+    filename = (
+        f"{args.split}_activations_{len(samples)}{'_suffix' if args.suffix else ''}.pt"
+    )
+
+    output_path = output_dir / filename
+
+    if args.hf:
+        create_repo(repo_id=args.hf_repo, repo_type="dataset", exist_ok=True)
+        upload_file(
+            path_or_fileobj=str(output_path),
+            path_in_repo=filename,
+            repo_id=args.hf_repo,
+            repo_type="dataset",
+        )
+        print(f"Uploaded {filename} to {args.hf_repo}")
+    else:
+        torch.save(output_data, output_path)
+        print(f"Saved activations to {output_path}")
 
 
 if __name__ == "__main__":
