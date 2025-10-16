@@ -81,19 +81,8 @@ def main():
     args = parser.parse_args()
 
     print(f"Loading activations from {args.file}...")
-    data = load_activations(args.file)
-
-    print(f"Number of samples: {data['global_metadata']['num_samples']}")
-    print(f"Number of layers: {data['global_metadata']['num_layers']}")
-    print(f"Model dimension: {data['global_metadata']['d_model']}")
-    print(f"Visualizing layers: {args.layers}")
-
-    plot_tsne_layers(
-        args,
-        data,
-        args.layers,
-        perplexity=args.perplexity,
-    )
+    data = load_activations(args.file, args.hf, args.hf_repo)
+    plot_tsne_layers(args, data, args.layers, perplexity=args.perplexity)
 
 
 if __name__ == "__main__":

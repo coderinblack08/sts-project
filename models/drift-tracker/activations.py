@@ -151,9 +151,7 @@ def main():
         },
     }
 
-    filename = (
-        f"{args.split}_activations_{len(samples)}{'_suffix' if args.suffix else ''}.pt"
-    )
+    filename = f"{args.split}_activations_{"max" if args.n.lower() == "max" else args.n}{len(samples)}{'_suffix' if args.suffix else ''}.pt"
 
     output_path = output_dir / filename
 
