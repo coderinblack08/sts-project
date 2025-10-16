@@ -112,6 +112,9 @@ def main():
         end_of_injection_token = char_to_token_index(
             poisoned_text, sample["injection_end"], tokenizer
         )
+        start_of_injection_token = char_to_token_index(
+            poisoned_text, sample["injection_start"], tokenizer
+        )
         end_of_clean_token = clean_tokens["input_ids"].shape[1] - 1
         end_of_poisoned_token = poisoned_tokens["input_ids"].shape[1] - 1
 
@@ -122,14 +125,14 @@ def main():
             model,
             tokenizer,
             poisoned_text,
-            [end_of_injection_token, end_of_poisoned_token],
+            [end_of_poisoned_token],
         )
 
         result = {
             "sample_idx": idx,
             "positions": {
                 "end_of_primary": end_of_primary_token,
-                "start_of_injection": sample["injection_start"],
+                "start_of_injection": start_of_injection_token,
                 "end_of_injection": end_of_injection_token,
                 "end_of_clean": end_of_clean_token,
                 "end_of_poisoned": end_of_poisoned_token,
