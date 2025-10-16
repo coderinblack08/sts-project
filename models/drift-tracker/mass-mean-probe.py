@@ -1,6 +1,6 @@
 import argparse
 import numpy as np
-from pathlib import Path
+import json
 from typing import Tuple, Dict
 from jaxtyping import Float
 from sklearn.metrics import (
@@ -14,10 +14,8 @@ from sklearn.metrics import (
 )
 from scipy.special import expit
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from utils import load_activations, compute_activation_residuals
-
-output_dir = Path(__file__).parent / "output"
+from huggingface_hub import HfApi
+from utils import load_activations, compute_activation_residuals, output_dir
 
 
 def prepare_data(
@@ -89,7 +87,11 @@ def predict_mass_mean(
 
 def train_and_evaluate_mass_mean(
     train_data: dict, test_data: dict, layer_idx: int
-) -> Tuple[Dict[str, float], Tuple[np.ndarray, np.ndarray]]:
+) -> Tuple[
+    Tuple[Float[np.ndarray, "d_model"], Float[np.ndarray, "d_model d_model"]],
+    Dict[str, float],
+    Tuple[np.ndarray, np.ndarray],
+]:
     X_train, y_train = prepare_data(train_data, layer_idx)
     X_test, y_test = prepare_data(test_data, layer_idx)
 
@@ -102,7 +104,7 @@ def train_and_evaluate_mass_mean(
 
     fpr, tpr, _ = roc_curve(y_test, y_proba)
 
-    return metrics, (fpr, tpr)
+    return (theta_mm, Sigma_inv), metrics, (fpr, tpr)
 
 
 def plot_all_roc_curves(
@@ -138,47 +140,98 @@ def plot_all_roc_curves(
     plt.close(fig)
 
 
+def save_probes_to_hf(
+    probes: Dict[
+        int, Tuple[Float[np.ndarray, "d_model"], Float[np.ndarray, "d_model d_model"]]
+    ],
+    results: Dict[int, Dict[str, float]],
+    hf_repo: str,
+    train_file: str,
+    test_file: str,
+):
+    api = HfApi()
+
+    metadata = {
+        "train_file": train_file,
+        "test_file": test_file,
+        "layers": list(probes.keys()),
+        "results": {
+            str(layer): {k: float(v) for k, v in metrics.items()}
+            for layer, metrics in results.items()
+        },
+    }
+
+    metadata_path = output_dir / "mm_probe_metadata.json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    api.upload_file(
+        path_or_fileobj=str(metadata_path),
+        path_in_repo="mm_probe_metadata.json",
+        repo_id=hf_repo,
+        repo_type="dataset",
+    )
+
+    for layer_idx, (theta_mm, Sigma_inv) in probes.items():
+        probe_data = {"theta_mm": theta_mm, "Sigma_inv": Sigma_inv}
+        probe_path = output_dir / f"mm_probe_l{layer_idx}.npz"
+        np.savez(probe_path, **probe_data)
+
+        api.upload_file(
+            path_or_fileobj=str(probe_path),
+            path_in_repo=f"mm_probe_l{layer_idx}.npz",
+            repo_id=hf_repo,
+            repo_type="dataset",
+        )
+
+        print(f"Uploaded mass-mean probe for layer {layer_idx} to {hf_repo}")
+
+    print(f"Uploaded metadata to {hf_repo}")
+    print(f"All probes saved to HuggingFace repo: {hf_repo}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Train mass-mean probes for clean vs poisoned classification"
     )
+    parser.add_argument("--hf", action="store_true")
+    parser.add_argument("--hf-repo", type=str)
     parser.add_argument(
         "--train_file",
         type=str,
         required=True,
-        help="Training activations file (e.g., activations_1000.pt)",
     )
     parser.add_argument(
         "--test_file",
         type=str,
         required=True,
-        help="Test activations file (e.g., activations_test_100.pt)",
     )
     parser.add_argument(
         "--layers",
         type=int,
         nargs="+",
         default=[0, 7, 15, 27],
-        help="Layer indices to train probes on",
     )
 
     args = parser.parse_args()
 
-    train_data = load_activations(args.train_file)
-    test_data = load_activations(args.test_file)
+    train_data = load_activations(args.train_file, args.hf, args.hf_repo)
+    test_data = load_activations(args.test_file, args.hf, args.hf_repo)
 
     print(f"Training set: {train_data['global_metadata']['num_samples']} samples")
     print(f"Test set: {test_data['global_metadata']['num_samples']} samples")
     print()
 
+    probes = {}
     results = {}
     roc_data = {}
 
     for layer_idx in args.layers:
         print(f"Training mass-mean probe for layer {layer_idx}...")
-        metrics, (fpr, tpr) = train_and_evaluate_mass_mean(
+        (theta_mm, Sigma_inv), metrics, (fpr, tpr) = train_and_evaluate_mass_mean(
             train_data, test_data, layer_idx
         )
+        probes[layer_idx] = (theta_mm, Sigma_inv)
         results[layer_idx] = metrics
         roc_data[layer_idx] = (fpr, tpr, metrics['auroc'])
 
@@ -203,6 +256,21 @@ def main():
     print(
         f"Best performing layer: {best_layer} (AUROC: {results[best_layer]['auroc']:.4f})"
     )
+
+    if args.hf_repo:
+        print()
+        print("Saving probes to HuggingFace...")
+        save_probes_to_hf(
+            probes, results, args.hf_repo, args.train_file, args.test_file
+        )
+    else:
+        print()
+        print("Saving probes locally...")
+        for layer_idx, (theta_mm, Sigma_inv) in probes.items():
+            probe_data = {"theta_mm": theta_mm, "Sigma_inv": Sigma_inv}
+            probe_path = output_dir / f"mm_probe_l{layer_idx}.npz"
+            np.savez(probe_path, **probe_data)
+            print(f"Saved mass-mean probe for layer {layer_idx} to {probe_path}")
 
 
 if __name__ == "__main__":
