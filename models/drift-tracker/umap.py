@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import argparse
-from sklearn.manifold import TSNE
+import umap
 import numpy as np
 from pathlib import Path
 from typing import List
@@ -9,7 +9,7 @@ from utils import load_activations, compute_activation_residuals
 output_dir = Path(__file__).parent / "output"
 
 
-def plot_tsne_layers(args, data: dict, layers: List[int], perplexity: int = 30):
+def plot_umap_layers(args, data: dict, layers: List[int], n_neighbors: int = 15):
     n_layers = len(layers)
     fig, axes = plt.subplots(1, n_layers, figsize=(5 * n_layers, 5))
 
@@ -20,8 +20,8 @@ def plot_tsne_layers(args, data: dict, layers: List[int], perplexity: int = 30):
         clean_acts, poisoned_acts = compute_activation_residuals(data, layer_idx)
         combined = np.vstack([clean_acts, poisoned_acts])
 
-        tsne = TSNE(n_components=2, perplexity=perplexity)
-        embedded = tsne.fit_transform(combined)
+        reducer = umap.UMAP(n_components=2, n_neighbors=n_neighbors)
+        embedded = reducer.fit_transform(combined)
 
         n_clean = len(clean_acts)
         clean_embedded = embedded[:n_clean]
@@ -53,14 +53,14 @@ def plot_tsne_layers(args, data: dict, layers: List[int], perplexity: int = 30):
 
     plt.tight_layout()
 
-    output_path = output_dir / f"tsne_{args.file}.png"
+    output_path = output_dir / f"umap_{args.file}.png"
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Saved plot to {output_path}")
     plt.show()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="t-SNE visualization of activations")
+    parser = argparse.ArgumentParser(description="UMAP visualization of activations")
     parser.add_argument("--hf", action="store_true")
     parser.add_argument("--hf-repo", type=str)
     parser.add_argument(
@@ -76,13 +76,13 @@ def main():
         help="Layer indices to visualize",
     )
     parser.add_argument(
-        "--perplexity", type=int, default=30, help="t-SNE perplexity parameter"
+        "--n-neighbors", type=int, default=15, help="UMAP n_neighbors parameter"
     )
     args = parser.parse_args()
 
     print(f"Loading activations from {args.file}...")
     data = load_activations(args.file, args.hf, args.hf_repo)
-    plot_tsne_layers(args, data, args.layers, perplexity=args.perplexity)
+    plot_umap_layers(args, data, args.layers, n_neighbors=args.n_neighbors)
 
 
 if __name__ == "__main__":
