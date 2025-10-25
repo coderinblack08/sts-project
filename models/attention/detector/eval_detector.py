@@ -1,0 +1,160 @@
+import argparse
+import json
+import os
+import random
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from datasets import load_dataset
+from dectector import AttentionDetector
+from model import AttentionModel
+from sklearn.metrics import (
+    average_precision_score,
+    confusion_matrix,
+    roc_auc_score,
+    roc_curve,
+)
+from tqdm import tqdm
+
+
+def open_config(config_path):
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+
+def create_model(config):
+    return AttentionModel(config=config)
+
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def plot_roc_curve(labels, scores, auc_score, output_path):
+    fpr, tpr, thresholds = roc_curve(labels, scores)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(
+        fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {auc_score:.3f})'
+    )
+    plt.plot(
+        [0, 1], [0, 1], color='navy', lw=2, linestyle='--', label='Random classifier'
+    )
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC) Curve')
+    plt.legend(loc="lower right")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+
+def main(args):
+    set_seed(args.seed)
+
+    output_logs = f"./probes/result/{args.model_name}_logs.json"
+    output_result = f"./probes/result/{args.model_name}_result.jsonl"
+
+    script_dir = Path(__file__).parent.parent
+    model_config_path = script_dir / "configs" / f"{args.model_name}.json"
+    model_config = open_config(config_path=str(model_config_path))
+
+    model = create_model(config=model_config)
+    model.print_model_info()
+
+    dataset = load_dataset(args.dataset_name)
+    test_data = dataset['test']
+
+    detector = AttentionDetector(model)
+    print("===================")
+    print(f"Using detector: {detector.name}")
+
+    labels, predictions, scores = [], [], []
+    logs = []
+
+    for data in tqdm(test_data):
+        result = detector.detect(data['text'])
+        detect = result[0]
+        score = result[1]['focus_score']
+
+        labels.append(data['label'])
+        predictions.append(detect)
+        scores.append(1 - score)
+
+        result_data = {"text": data['text'], "label": data['label'], "result": result}
+
+        logs.append(result_data)
+
+    auc_score = roc_auc_score(labels, scores)
+    auprc_score = average_precision_score(labels, scores)
+
+    tn, fp, fn, tp = confusion_matrix(labels, predictions).ravel()
+    fnr = fn / (fn + tp) if (fn + tp) > 0 else 0
+    fpr = fp / (fp + tn) if (fp + tn) > 0 else 0
+
+    auc_score = round(auc_score, 3)
+    auprc_score = round(auprc_score, 3)
+    fnr = round(fnr, 3)
+    fpr = round(fpr, 3)
+
+    print(f"AUC Score: {auc_score}; AUPRC Score: {auprc_score}; FNR: {fnr}; FPR: {fpr}")
+
+    os.makedirs(os.path.dirname(output_logs), exist_ok=True)
+
+    output_plot = f"./probes/result/{args.model_name}_roc_curve.png"
+    plot_roc_curve(labels, scores, auc_score, output_plot)
+    print(f"ROC curve saved to: {output_plot}")
+    with open(output_logs, "w") as f_out:
+        f_out.write(json.dumps({"result": logs}, indent=4))
+
+    os.makedirs(os.path.dirname(output_result), exist_ok=True)
+    with open(output_result, "a") as f_out:
+        f_out.write(
+            json.dumps(
+                {
+                    "model": args.model_name,
+                    "seed": args.seed,
+                    "auc": auc_score,
+                    "auprc": auprc_score,
+                    "fnr": fnr,
+                    "fpr": fpr,
+                }
+            )
+            + "\n"
+        )
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Evaluate attention detector")
+
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default="qwen2-attn",
+        help="Path to the model configuration file.",
+    )
+    parser.add_argument(
+        "--dataset_name",
+        type=str,
+        default="deepset/prompt-injections",
+        help="Path to the dataset.",
+    )
+    parser.add_argument("--seed", type=int, default=0)
+
+    args = parser.parse_args()
+
+    main(args)

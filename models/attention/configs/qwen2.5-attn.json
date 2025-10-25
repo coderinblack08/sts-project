@@ -1,0 +1,26 @@
+{
+  "model_info": {
+    "provider": "Qwen",
+    "name": "qwen-attn",
+    "model_id": "Qwen/Qwen2.5-1.5B-Instruct"
+  },
+  "params": {
+    "temperature": 0.1,
+    "max_output_tokens": 32,
+    "important_heads": [
+      [5, 4],
+      [7, 2],
+      [9, 1],
+      [10, 6],
+      [10, 7],
+      [10, 10],
+      [11, 5],
+      [11, 6],
+      [11, 10],
+      [11, 11],
+      [13, 8],
+      [15, 4],
+      [16, 0]
+    ]
+  }
+}
