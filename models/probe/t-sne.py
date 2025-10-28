@@ -29,20 +29,24 @@ def plot_tsne_layers(args, data: dict, layers: List[int], perplexity: int = 30):
 
         ax = axes[idx]
         ax.scatter(
-            clean_embedded[:, 0],
-            clean_embedded[:, 1],
-            c='green',
-            alpha=0.6,
-            label='Clean',
-            s=50,
-        )
-        ax.scatter(
             poisoned_embedded[:, 0],
             poisoned_embedded[:, 1],
-            c='red',
-            alpha=0.6,
+            facecolors='none',
+            edgecolors='red',
+            linewidths=1.5,
             label='Poisoned',
             s=50,
+            marker='^',
+        )
+        ax.scatter(
+            clean_embedded[:, 0],
+            clean_embedded[:, 1],
+            facecolors='none',
+            edgecolors='green',
+            linewidths=1.5,
+            label='Clean',
+            s=50,
+            marker='^',
         )
 
         ax.set_xlabel('Component 1', fontsize=12)
@@ -53,9 +57,14 @@ def plot_tsne_layers(args, data: dict, layers: List[int], perplexity: int = 30):
 
     plt.tight_layout()
 
-    output_path = output_dir / f"tsne_{args.file}.png"
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"Saved plot to {output_path}")
+    output_path_png = output_dir / f"tsne_{args.file}.png"
+    plt.savefig(output_path_png, dpi=300, bbox_inches='tight', format='png')
+    print(f"Saved plot to {output_path_png}")
+
+    output_path_eps = output_dir / f"tsne_{args.file}.eps"
+    plt.savefig(output_path_eps, dpi=300, bbox_inches='tight', format='eps')
+    print(f"Saved plot to {output_path_eps}")
+
     plt.show()
 
 

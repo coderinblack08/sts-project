@@ -161,25 +161,31 @@ def save_probes_to_hf(
         },
     }
 
-    metadata_path = output_dir / "mm_probe_metadata.json"
+    metadata_path = (
+        output_dir
+        / f"mm_probe_metadata{'_suffix' if train_file.endswith('_suffix.pt') else ''}.json"
+    )
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
 
     api.upload_file(
         path_or_fileobj=str(metadata_path),
-        path_in_repo="mm_probe_metadata.json",
+        path_in_repo=f"mm_probe_metadata{'_suffix' if train_file.endswith('_suffix.pt') else ''}.json",
         repo_id=hf_repo,
         repo_type="dataset",
     )
 
     for layer_idx, (theta_mm, Sigma_inv) in probes.items():
         probe_data = {"theta_mm": theta_mm, "Sigma_inv": Sigma_inv}
-        probe_path = output_dir / f"mm_probe_l{layer_idx}.npz"
+        probe_path = (
+            output_dir
+            / f"mm_probe_l{layer_idx}{'_suffix' if train_file.endswith('_suffix.pt') else ''}.npz"
+        )
         np.savez(probe_path, **probe_data)
 
         api.upload_file(
             path_or_fileobj=str(probe_path),
-            path_in_repo=f"mm_probe_l{layer_idx}.npz",
+            path_in_repo=f"mm_probe_l{layer_idx}{'_suffix' if train_file.endswith('_suffix.pt') else ''}.npz",
             repo_id=hf_repo,
             repo_type="dataset",
         )
@@ -215,8 +221,8 @@ def main():
 
     args = parser.parse_args()
 
-    train_data = load_activations(args.train_file, args.hf, args.hf_repo)
-    test_data = load_activations(args.test_file, args.hf, args.hf_repo)
+    train_data = load_activations(args.train_file)
+    test_data = load_activations(args.test_file)
 
     print(f"Training set: {train_data['global_metadata']['num_samples']} samples")
     print(f"Test set: {test_data['global_metadata']['num_samples']} samples")
@@ -268,9 +274,14 @@ def main():
         print("Saving probes locally...")
         for layer_idx, (theta_mm, Sigma_inv) in probes.items():
             probe_data = {"theta_mm": theta_mm, "Sigma_inv": Sigma_inv}
-            probe_path = output_dir / f"mm_probe_l{layer_idx}.npz"
+            probe_path = (
+                output_dir
+                / f"mm_probe_l{layer_idx}{'_suffix' if args.train_file.endswith('_suffix.pt') else ''}.npz"
+            )
             np.savez(probe_path, **probe_data)
-            print(f"Saved mass-mean probe for layer {layer_idx} to {probe_path}")
+            print(
+                f"Saved mass-mean probe for layer {layer_idx}{'_suffix' if args.train_file.endswith('_suffix.pt') else ''} to {probe_path}"
+            )
 
 
 if __name__ == "__main__":
