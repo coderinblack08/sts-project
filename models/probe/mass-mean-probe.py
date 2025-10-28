@@ -1,21 +1,22 @@
 import argparse
-import numpy as np
 import json
-from typing import Tuple, Dict
+from typing import Dict, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
+from huggingface_hub import HfApi
 from jaxtyping import Float
+from scipy.special import expit
 from sklearn.metrics import (
-    roc_auc_score,
-    roc_curve,
-    confusion_matrix,
     accuracy_score,
+    confusion_matrix,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
+    roc_auc_score,
+    roc_curve,
 )
-from scipy.special import expit
-import matplotlib.pyplot as plt
-from huggingface_hub import HfApi
-from utils import load_activations, compute_activation_residuals, output_dir
+from utils import compute_activation_residuals, load_activations, output_dir
 
 
 def prepare_data(

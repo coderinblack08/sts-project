@@ -1,10 +1,11 @@
-import matplotlib.pyplot as plt
 import argparse
-from sklearn.manifold import TSNE
-import numpy as np
 from pathlib import Path
 from typing import List
-from utils import load_activations, compute_activation_residuals
+
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.manifold import TSNE
+from utils import compute_activation_residuals, load_activations
 
 output_dir = Path(__file__).parent / "output"
 

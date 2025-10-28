@@ -1,22 +1,32 @@
 import argparse
-import numpy as np
-import joblib
 import json
-from typing import Tuple, Dict
+from typing import Dict, Tuple
+
+import joblib
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from huggingface_hub import HfApi
 from jaxtyping import Float
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
-    roc_auc_score,
-    roc_curve,
-    confusion_matrix,
     accuracy_score,
+    confusion_matrix,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
+    roc_auc_score,
+    roc_curve,
 )
-import matplotlib.pyplot as plt
-from huggingface_hub import HfApi
-from utils import load_activations, compute_activation_residuals, output_dir
+from utils import compute_activation_residuals, load_activations, output_dir
+
+device = (
+    "cuda"
+    if torch.cuda.is_available()
+    else "mps"
+    if torch.backends.mps.is_available()
+    else "cpu"
+)
 
 
 def prepare_data(

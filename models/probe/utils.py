@@ -1,10 +1,11 @@
 import json
-import torch
-import numpy as np
 from pathlib import Path
-from typing import Tuple, Optional
-from jaxtyping import Float
+from typing import Optional, Tuple
+
+import numpy as np
+import torch
 from huggingface_hub import hf_hub_download
+from jaxtyping import Float
 
 dataset_dir = Path(__file__).parent / "dataset"
 output_dir = Path(__file__).parent / "output"

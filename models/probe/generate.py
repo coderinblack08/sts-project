@@ -1,7 +1,7 @@
+import argparse
 import json
 import random
 import re
-import argparse
 from pathlib import Path
 from typing import Dict, List, Literal, Tuple
 

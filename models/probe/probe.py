@@ -1,18 +1,19 @@
 import argparse
-import numpy as np
 from pathlib import Path
-from typing import Tuple, Dict
+from typing import Dict, Tuple
+
+import numpy as np
 from jaxtyping import Float
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
-    roc_auc_score,
-    confusion_matrix,
     accuracy_score,
+    confusion_matrix,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
+    roc_auc_score,
 )
-from utils import load_activations, compute_activation_residuals
+from utils import compute_activation_residuals, load_activations
 
 output_dir = Path(__file__).parent / "output"
 

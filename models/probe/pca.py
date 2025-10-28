@@ -1,13 +1,14 @@
-import matplotlib.pyplot as plt
 import argparse
-from sklearn.decomposition import PCA
-import numpy as np
 from pathlib import Path
 from typing import List
+
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.decomposition import PCA
 from utils import (
-    load_activations,
     compute_activation_residuals,
     extract_layer_activations,
+    load_activations,
 )
 
 output_dir = Path(__file__).parent / "output"

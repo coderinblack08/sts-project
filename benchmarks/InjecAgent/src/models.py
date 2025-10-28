@@ -61,7 +61,7 @@ class GPTModel(BaseModel):
         )
         return completion.choices[0].message.content
     
-import together   
+import together
 class TogetherAIModel(BaseModel): 
     def __init__(self, params):
         super().__init__()  
