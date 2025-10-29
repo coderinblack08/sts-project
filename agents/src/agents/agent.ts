@@ -144,15 +144,15 @@ export class Agent {
 
     const result = await agent.generate({ prompt });
 
+    await Bun.write("agent_output.txt", JSON.stringify(result.steps, null, 2));
+    console.log(`[💾] Saved agent output to agent_output.txt`);
+
     if (this.kv.isKey(result.text)) {
       const node = this.kv.getNode(result.text);
       if (node) {
         return node.value;
       }
     }
-
-    await Bun.write("agent_output.txt", JSON.stringify(result.steps, null, 2));
-    console.log(`[💾] Saved agent output to agent_output.txt`);
 
     for (const step of result.steps) {
       console.log(step.toolCalls, step.toolResults);
