@@ -1,12 +1,27 @@
-# Replication
+# Agent Security
 
-## `/models`
+## Installation
+
+### Probe
 
 ```bash
-git clone https://github.com/coderinblack08/sts-project.git
-pip install uv
-uv sync
-pip install -U "huggingface_hub[cli]"
-hf auth login
-echo "set -g mouse on" >> ~/.tmux.conf
+cd sts-project/models/drift-tracker
+uv run activations.py --n max --split train --hf --hf-repo [repo name] &
+uv run activations.py --n max --split test --hf --hf-repo [repo name] &
+wait
+uv run t-sne.py --hf --hf-repo [repo name] --file train_activations_max.pt
+uv run regression-probe.py --hf --hf-repo [repo name] --train_file train_activations_max.pt --test_file test_activations_max.pt
+uv run mass-mean-probe.py --hf --hf-repo [repo name] --train_file train_activations_max.pt --test_file test_activations_max.pt
+```
+
+### Probe
+
+```bash
+cd sts-project/models/drift-tracker
+uv run activations.py --n max --split train --hf --hf-repo [repo name] &
+uv run activations.py --n max --split test --hf --hf-repo [repo name] &
+wait
+uv run t-sne.py --hf --hf-repo [repo name] --file train_activations_max.pt
+uv run regression-probe.py --hf --hf-repo [repo name] --train_file train_activations_max.pt --test_file test_activations_max.pt
+uv run mass-mean-probe.py --hf --hf-repo [repo name] --train_file train_activations_max.pt --test_file test_activations_max.pt
 ```

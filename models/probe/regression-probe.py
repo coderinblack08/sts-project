@@ -23,9 +23,7 @@ from utils import compute_activation_residuals, load_activations, output_dir
 device = (
     "cuda"
     if torch.cuda.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()
-    else "cpu"
+    else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
 

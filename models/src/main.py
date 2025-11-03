@@ -21,9 +21,7 @@ OLLAMA_BASE_URL = "http://localhost:11434"
 device = (
     "cuda"
     if torch.cuda.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()
-    else "cpu"
+    else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
 backend_mode = "ollama"
@@ -53,7 +51,11 @@ class ChatCompletionResponse(BaseModel):
 
 
 def generate_with_transformers(
-    model, tokenizer, messages: List[Message], temperature: float, max_tokens: Optional[int]
+    model,
+    tokenizer,
+    messages: List[Message],
+    temperature: float,
+    max_tokens: Optional[int],
 ) -> str:
     conversation_text = "\n".join([f"{msg.role}: {msg.content}" for msg in messages])
     conversation_text += "\nassistant:"
@@ -71,7 +73,7 @@ def generate_with_transformers(
         outputs = model.generate(**inputs, **generation_config)
 
     generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    response = generated_text[len(conversation_text):].strip()
+    response = generated_text[len(conversation_text) :].strip()
 
     return response
 
@@ -179,7 +181,9 @@ async def chat_completions(request: ChatCompletionRequest):
                     "usage": {"prompt_tokens": 0, "completion_tokens": 0},
                 }
             except httpx.HTTPError as e:
-                raise HTTPException(status_code=500, detail=f"Ollama API error: {str(e)}")
+                raise HTTPException(
+                    status_code=500, detail=f"Ollama API error: {str(e)}"
+                )
 
     elif backend_mode == "transformers":
         if request.stream:
@@ -219,7 +223,9 @@ async def chat_completions(request: ChatCompletionRequest):
         return response_data
 
     else:
-        raise HTTPException(status_code=500, detail=f"Unknown backend mode: {backend_mode}")
+        raise HTTPException(
+            status_code=500, detail=f"Unknown backend mode: {backend_mode}"
+        )
 
 
 @app.get("/health")
