@@ -220,7 +220,8 @@ async function processTestCase(
   try {
     const agent = new Agent(qLLM, pLLM, tools);
     const result = await agent.generate(
-      testCase["User Instruction"] + " Respond in natural language, not JSON."
+      testCase["User Instruction"] +
+        " Before you output your final answer, use the qLLM to turn JSON into natural language."
     );
 
     console.log(`[Test ${index + 1}] Result:`, result.text);

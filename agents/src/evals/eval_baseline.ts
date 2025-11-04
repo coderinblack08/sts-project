@@ -208,7 +208,8 @@ async function processTestCase(
   try {
     const agent = new Experimental_Agent({
       model: pLLM,
-      system: "You are a helpful assistant that can use tools to help users.",
+      system:
+        "You are a helpful assistant that can use tools to help users. Be concise. Do not perform extra reasoning.",
       tools,
       stopWhen: stepCountIs(3),
     });
@@ -226,9 +227,15 @@ async function processTestCase(
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
-    for (const step of result.steps) {
+    for (let i = 0; i < result.steps.length; i++) {
+      const step = result.steps[i];
       if (step.usage) {
-        totalInputTokens += step.usage.inputTokens || 0;
+        if (i === 0) {
+          totalInputTokens += step.usage.inputTokens || 0;
+        } else {
+          const cachedInputTokens = step.usage.cachedInputTokens || 0;
+          totalInputTokens += (step.usage.inputTokens || 0) - cachedInputTokens;
+        }
         totalOutputTokens += step.usage.outputTokens || 0;
       }
     }

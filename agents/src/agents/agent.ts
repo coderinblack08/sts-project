@@ -110,9 +110,11 @@ export class Agent {
     const enc = encodingForModel("gpt-4"); // proxy for qwen-2.5's tokenizer
 
     const qLLM = tool({
-      description: "Invoke the quarantined LLM to interact with untrusted data",
+      description: "Call the quarantined LLM to interact with untrusted data",
       inputSchema: z.object({
-        qPrompt: z.string().describe("Instructions for the quarantined LLM"),
+        qPrompt: z
+          .string()
+          .describe("Instructions for the quarantined LLM. Be very concise."),
         untrustedData: z
           .string()
           .describe("The untrusted data to interact with (e.g. $0 or $1)"),
@@ -166,9 +168,15 @@ export class Agent {
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
-    for (const step of result.steps) {
+    for (let i = 0; i < result.steps.length; i++) {
+      const step = result.steps[i];
       if (step.usage) {
-        totalInputTokens += step.usage.inputTokens || 0;
+        if (i === 0) {
+          totalInputTokens += step.usage.inputTokens || 0;
+        } else {
+          const cachedInputTokens = step.usage.cachedInputTokens || 0;
+          totalInputTokens += (step.usage.inputTokens || 0) - cachedInputTokens;
+        }
         totalOutputTokens += step.usage.outputTokens || 0;
       }
       console.log(step.toolCalls, step.toolResults);
