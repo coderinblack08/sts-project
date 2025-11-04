@@ -1,6 +1,7 @@
 import type { LanguageModel } from "ai";
 import { Experimental_Agent, generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
+import { encodingForModel } from "js-tiktoken";
 import { KvNode, KvStore } from "./kv.ts";
 import { type Policy, PolicyViolationError } from "./policy.ts";
 import { SYSTEM_PROMPT } from "./prompts.ts";
@@ -95,8 +96,18 @@ export class Agent {
     }
   }
 
-  async generate(prompt: string) {
+  async generate(prompt: string): Promise<{
+    text: string;
+    inputTokens: number;
+    outputTokens: number;
+    qLLMInputTokens: number;
+    qLLMOutputTokens: number;
+  }> {
     this.kv.reset();
+
+    let qLLMInputTokens = 0;
+    let qLLMOutputTokens = 0;
+    const enc = encodingForModel("gpt-4"); // proxy for qwen-2.5's tokenizer
 
     const qLLM = tool({
       description: "Invoke the quarantined LLM to interact with untrusted data",
@@ -119,6 +130,11 @@ export class Agent {
           system: qPrompt,
           prompt: JSON.stringify(node.value),
         });
+
+        const promptText = JSON.stringify(node.value);
+        qLLMInputTokens +=
+          enc.encode(qPrompt).length + enc.encode(promptText).length;
+        qLLMOutputTokens += enc.encode(extractedValue.text).length;
 
         const id = this.kv.createNode(extractedValue.text, true);
         return { __id: id };
@@ -147,17 +163,35 @@ export class Agent {
     await Bun.write("agent_output.txt", JSON.stringify(result.steps, null, 2));
     console.log(`[💾] Saved agent output to agent_output.txt`);
 
-    if (this.kv.isKey(result.text)) {
-      const node = this.kv.getNode(result.text);
-      if (node) {
-        return node.value;
-      }
-    }
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     for (const step of result.steps) {
+      if (step.usage) {
+        totalInputTokens += step.usage.inputTokens || 0;
+        totalOutputTokens += step.usage.outputTokens || 0;
+      }
       console.log(step.toolCalls, step.toolResults);
     }
 
-    return result.text;
+    let outputText: string;
+    if (this.kv.isKey(result.text)) {
+      const node = this.kv.getNode(result.text);
+      if (node) {
+        outputText = node.value;
+      } else {
+        outputText = result.text;
+      }
+    } else {
+      outputText = result.text;
+    }
+
+    return {
+      text: outputText,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      qLLMInputTokens: qLLMInputTokens,
+      qLLMOutputTokens: qLLMOutputTokens,
+    };
   }
 }
