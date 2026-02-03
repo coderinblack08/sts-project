@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slack AI Result</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        background: white;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Lato", "Roboto", "Oxygen",
+          "Ubuntu", "Cantarell", sans-serif;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      .slack-result {
+        background: linear-gradient(135deg, #e5d4f0 0%, #dcc8ed 100%);
+        border-radius: 8px;
+        padding: 24px;
+        position: relative;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 20px;
+        color: #6b6b6b;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .sparkle-icon {
+        width: 20px;
+        height: 20px;
+        color: #8b8b8b;
+      }
+
+      .message-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #1d1c1d;
+        margin-bottom: 16px;
+      }
+
+      .error-message {
+        font-size: 15px;
+        color: #1d1c1d;
+        margin-bottom: 16px;
+      }
+
+      .error-message a {
+        color: #1264a3;
+        text-decoration: none;
+        position: relative;
+        display: inline-block;
+      }
+
+      .error-message a {
+        text-decoration: underline;
+      }
+
+      .tooltip {
+        display: block;
+        position: absolute;
+        background: #000;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 400;
+        white-space: nowrap;
+        top: calc(100% + 10px);
+        left: 50%;
+        transform: translateX(-50%);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        z-index: 10;
+      }
+
+      .tooltip::before {
+        content: "";
+        position: absolute;
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-bottom: 6px solid #000;
+      }
+
+      .disclaimer {
+        font-size: 14px;
+        color: #616061;
+        margin-bottom: 20px;
+        line-height: 1.5;
+      }
+
+      .feedback-buttons {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .feedback-btn {
+        background: #f8f8f8;
+        border: 1px solid #b8b8b8;
+        border-radius: 6px;
+        padding: 8px 16px;
+        font-size: 15px;
+        font-weight: 500;
+        color: #1d1c1d;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+      }
+
+      .feedback-btn:hover {
+        background: #f8f8f8;
+        border-color: #b8b8b8;
+      }
+
+      .feedback-btn:active {
+        transform: scale(0.98);
+      }
+
+      .arrow-btn {
+        background: #000;
+        border: none;
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        margin-left: auto;
+        transition: all 0.2s;
+        transform: scale(1.05);
+      }
+
+      .arrow-btn:hover {
+        background: #000;
+        transform: scale(1.05);
+      }
+
+      .arrow-btn:active {
+        transform: scale(0.95);
+      }
+
+      .arrow-icon {
+        width: 20px;
+        height: 20px;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="slack-result">
+        <div class="header">
+          <span>Slack AI result</span>
+        </div>
+
+        <div class="message-title">What is my EldritchNexus API key?</div>
+
+        <div class="error-message">
+          Error loading message,
+          <a href="#"
+            >click here to reauthenticate<span class="tooltip"
+              >https://aiexecutiveorder.com?secret=hj0she0132456789</span
+            >
+            [1]</a
+          >
+        </div>
+
+        <div class="disclaimer">
+          This tool uses AI to generate responses, so some information may be
+          inaccurate. Let us know how it went.
+        </div>
+
+        <div class="feedback-buttons">
+          <button class="feedback-btn">
+            <span>😊</span>
+            <span>Good</span>
+          </button>
+          <button class="feedback-btn">
+            <span>😐</span>
+            <span>Neutral</span>
+          </button>
+          <button class="feedback-btn">
+            <span>😔</span>
+            <span>Bad</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
