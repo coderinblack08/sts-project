@@ -37,7 +37,7 @@ function convertToMessages(prompt: any[]): OllamaMessage[] {
   });
 }
 
-export function createOllamaProvider(settings: CustomProviderSettings = {}) {
+export function createQLLMProvider(settings: CustomProviderSettings = {}) {
   const baseURL = settings.baseURL || "http://localhost:8000";
   const apiKey = settings.apiKey;
 
@@ -217,7 +217,7 @@ export function createOllamaProvider(settings: CustomProviderSettings = {}) {
   return provider;
 }
 
-export const ollamaProvider = createOllamaProvider();
+export const qLLMProvider = createQLLMProvider();
 
 /*
 Usage Example:
